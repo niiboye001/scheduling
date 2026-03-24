@@ -17,8 +17,13 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null);
     const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({});
+    const [startTime, setStartTime] = useState('08:00');
+    const [endTime, setEndTime] = useState('16:00');
+    const [location, setLocation] = useState('');
+    const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(false);
     const [loadingContext, setLoadingContext] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
@@ -77,14 +82,40 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
             fetchAssignees();
             setSelectedAssignee('');
             setError('');
+            setLocation('');
+            setNotes('');
         }
     }, [isOpen]);
 
     if (!isOpen) return null;
 
-    const handleSave = () => {
-        // Implementation for saving shift would go here
-        onClose();
+    const handleSave = async () => {
+        if (!selectedDate || !startTime || !endTime) {
+            setError('Please fill in all required fields (Date, Start Time, End Time).');
+            return;
+        }
+
+        setIsSaving(true);
+        setError('');
+
+        const { error: saveError } = await supabase
+            .from('shifts')
+            .insert([{
+                user_id: selectedAssignee === 'unassigned' || !selectedAssignee ? null : selectedAssignee,
+                date: selectedDate,
+                start_time: startTime,
+                end_time: endTime,
+                location: location,
+                notes: notes
+            }]);
+
+        if (saveError) {
+            setError(`Save failed: ${saveError.message}`);
+            setIsSaving(false);
+        } else {
+            setIsSaving(false);
+            onClose();
+        }
     };
 
     return (
@@ -92,7 +123,7 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 100, padding: '1rem'
+            zIndex: 9999, padding: '1rem'
         }}>
             <div className="glass-panel" style={{
                 width: '100%', maxWidth: '500px', backgroundColor: 'var(--bg-primary)',
@@ -111,12 +142,12 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                 {/* Content */}
                 <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', flex: 1 }}>
 
-                    {error && (
+                    {(error || (selectedUserProfile && availabilityMap[selectedDate] === 'Unavailable')) && (
                         <div className="animate-fade-in" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--status-danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', color: 'var(--status-danger)', fontSize: '0.85rem' }}>
                             <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
                             <div>
-                                <strong>Conflict Detected</strong>
-                                <p style={{ marginTop: '0.25rem' }}>{error}</p>
+                                <strong>{error ? 'Missing Information' : 'Conflict Detected'}</strong>
+                                <p style={{ marginTop: '0.25rem' }}>{error || `${selectedUserProfile?.name} is marked as Unavailable on this day.`}</p>
                             </div>
                         </div>
                     )}
@@ -140,14 +171,14 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                             <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Start Time</label>
                             <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                                 <Clock size={16} color="var(--accent-primary)" />
-                                <input type="time" style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
+                                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
                             </div>
                         </div>
                         <div style={{ flex: 1 }}>
                             <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>End Time</label>
                             <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                                 <Clock size={16} color="var(--text-muted)" />
-                                <input type="time" style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
+                                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
                             </div>
                         </div>
                     </div>
@@ -192,7 +223,8 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                                     const dateStr = format(day, 'yyyy-MM-dd');
                                     const isTargetDate = dateStr === selectedDate;
                                     const status = availabilityMap[dateStr];
-                                    const isOffDay = selectedUserProfile?.off_days?.includes(day.getDay());
+                                    const profileOffDays = selectedUserProfile?.off_days;
+                                    const isOffDay = profileOffDays?.includes(day.getDay());
                                     
                                     return (
                                         <div key={i} style={{ 
@@ -220,7 +252,7 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                                     <span>Staff member marked as Unavailable on this day</span>
                                 </div>
                             )}
-                            {selectedUserProfile?.off_days?.includes(parseISO(selectedDate).getDay()) && !availabilityMap[selectedDate] && (
+                            {Array.isArray(selectedUserProfile?.off_days) && selectedUserProfile.off_days.includes(parseISO(selectedDate).getDay()) && !availabilityMap[selectedDate] && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-primary)', fontSize: '0.75rem', background: 'rgba(79, 70, 229, 0.05)', padding: '0.4rem', borderRadius: '4px' }}>
                                     <Clock size={12} />
                                     <span>Designated Routine Off-Day</span>
@@ -233,7 +265,7 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Department / Location</label>
                         <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                             <MapPin size={16} color="var(--status-warning)" />
-                            <input type="text" placeholder="e.g. ICU - Ward B" style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
+                            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. ICU - Ward B" style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
                         </div>
                     </div>
 
@@ -241,7 +273,7 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Notes</label>
                         <div className="input-field" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                             <FileText size={16} color="var(--text-muted)" style={{ marginTop: '0.2rem' }} />
-                            <textarea rows={3} placeholder="Add shift notes here..." style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%', resize: 'none', fontFamily: 'inherit' }}></textarea>
+                            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Add shift notes here..." style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%', resize: 'none', fontFamily: 'inherit' }}></textarea>
                         </div>
                     </div>
 
@@ -249,8 +281,11 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
 
                 {/* Footer */}
                 <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', background: 'var(--bg-tertiary)', flexShrink: 0 }}>
-                    <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={handleSave}>Create Shift</button>
+                    <button className="btn btn-secondary" onClick={onClose} disabled={isSaving}>Cancel</button>
+                    <button className="btn btn-primary" onClick={handleSave} disabled={isSaving} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {isSaving && <Loader2 size={16} className="animate-spin" />}
+                        {isSaving ? 'Creating...' : 'Create Shift'}
+                    </button>
                 </div>
             </div>
         </div>

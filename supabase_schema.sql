@@ -8,7 +8,7 @@ CREATE TABLE public.profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   role user_role DEFAULT 'EMPLOYEE'::user_role NOT NULL,
-  off_days INTEGER[] DEFAULT '{0, 6}'::INTEGER[] NOT NULL,
+  off_days INTEGER[], -- Null means no schedule set yet
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

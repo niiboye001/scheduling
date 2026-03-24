@@ -32,13 +32,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setUser(data as UserProfile);
             } else {
                 // If profile is missing (deleted from DB), invalidate the session
-                console.warn('Profile missing for authenticated user. Logging out.');
                 await supabase.auth.signOut();
                 setUser(null);
                 setSession(null);
             }
         } catch (e) {
-            console.error('Error fetching profile:', e);
             setUser(null);
         }
     };

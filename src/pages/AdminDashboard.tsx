@@ -11,32 +11,34 @@ const AdminDashboard: React.FC = () => {
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
     return (
-        <div className="app-container">
-            <Sidebar />
-            <div className="main-content-wrapper">
-                <Header currentDate={currentDate} setCurrentDate={setCurrentDate} />
-                <main className="main-content" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <div className="app-container">
+                <Sidebar />
+                <div className="main-content-wrapper">
+                    <Header currentDate={currentDate} setCurrentDate={setCurrentDate} />
+                    <main className="main-content" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
 
-                    <div style={{ flex: '1 1 65%', minWidth: '0', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                            <div>
-                                <h1 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(to right, #fff, var(--text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Admin Console</h1>
-                                <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', fontSize: '1rem' }}>
-                                    Manage staff shifts, resolve conflicts, and oversee availability.
-                                </p>
+                        <div style={{ flex: '1 1 65%', minWidth: '0', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                <div>
+                                    <h1 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(to right, #fff, var(--text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Admin Console</h1>
+                                    <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', fontSize: '1rem' }}>
+                                        Manage staff shifts, resolve conflicts, and oversee availability.
+                                    </p>
+                                </div>
+                                <button className="btn btn-primary" style={{ height: 'fit-content', padding: '0.75rem 1.5rem', position: 'relative', zIndex: 10 }} onClick={() => setIsModalOpen(true)}>
+                                    + New Shift
+                                </button>
                             </div>
-                            <button className="btn btn-primary" style={{ height: 'fit-content', padding: '0.75rem 1.5rem' }} onClick={() => setIsModalOpen(true)}>
-                                + New Shift
-                            </button>
+                            <ShiftCalendar currentDate={currentDate} selectedUserId={selectedUserId} />
                         </div>
-                        <ShiftCalendar currentDate={currentDate} selectedUserId={selectedUserId} />
-                    </div>
 
-                    <div style={{ flex: '1 1 30%', minWidth: '0' }}>
-                        <EmployeeList selectedUserId={selectedUserId} onUserClick={setSelectedUserId} />
-                    </div>
+                        <div style={{ flex: '1 1 30%', minWidth: '0' }}>
+                            <EmployeeList selectedUserId={selectedUserId} onUserClick={setSelectedUserId} />
+                        </div>
 
-                </main>
+                    </main>
+                </div>
             </div>
 
             <ShiftModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />

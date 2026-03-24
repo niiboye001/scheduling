@@ -57,8 +57,6 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
             setEmployees(prev => prev.map(emp =>
                 emp.id === targetUser.id ? { ...emp, role: newRole as 'ADMIN' | 'EMPLOYEE' } : emp
             ));
-        } else {
-            console.error('Failed to update role:', error);
         }
         setUpdatingId(null);
     };
@@ -209,7 +207,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setEditingOffDays(editingOffDays === emp.id ? null : emp.id);
-                                                        setTempOffDays(emp.off_days || [0, 6]);
+                                                        setTempOffDays(emp.off_days || []);
                                                         setOpenMenuId(null);
                                                     }}
                                                 >

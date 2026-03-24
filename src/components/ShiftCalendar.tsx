@@ -17,6 +17,7 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
     const weekDays = Array.from({ length: 7 }).map((_, i) => addDays(startDate, i));
 
     const [availability, setAvailability] = useState<Record<string, 'Available' | 'Unavailable' | 'Partial'>>({});
+    const [bookedShifts, setBookedShifts] = useState<any[]>([]);
 
     useEffect(() => {
         const targetId = selectedUserId || user?.id;
@@ -47,11 +48,25 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
             } else {
                 setAvailability({});
             }
+
+            // 1c. Fetch Shifts
+            let shiftsQuery = supabase
+                .from('shifts')
+                .select('*, profiles(name)')
+                .gte('date', format(startDate, 'yyyy-MM-dd'))
+                .lte('date', format(addDays(startDate, 6), 'yyyy-MM-dd'));
+            
+            if (user?.role !== 'ADMIN' || selectedUserId) {
+                shiftsQuery = shiftsQuery.eq('user_id', targetId);
+            }
+
+            const { data: shiftsData } = await shiftsQuery;
+            if (shiftsData) setBookedShifts(shiftsData);
         };
         fetchUserData();
 
-        // 2. Real-time Subscription Channel
-        const channel = supabase
+        // 2. Availabilities Subscription
+        const availabilityChannel = supabase
             .channel('public:availabilities')
             .on(
                 'postgres_changes',
@@ -68,10 +83,21 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
             )
             .subscribe();
 
+        // 3. Shifts Subscription
+        const shiftsChannel = supabase
+            .channel('public:shifts')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'shifts' },
+                () => fetchUserData() // Refetch shifts and profiles when a shift changes
+            )
+            .subscribe();
+
         return () => {
-            supabase.removeChannel(channel);
+            supabase.removeChannel(availabilityChannel);
+            supabase.removeChannel(shiftsChannel);
         };
-    }, [user, selectedUserId]);
+    }, [user, selectedUserId, currentDate]);
 
     const toggleAvailability = async (dateStr: string) => {
         if (!user) return; // Prevent unauthorized mutations
@@ -96,7 +122,6 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
             .select();
 
         if (error) {
-            console.error("Database connection fault or RLS failure mapping availability:", error);
             // Revert mapping on strict failure
             setAvailability(prev => ({ ...prev, [dateStr]: currentStatus }));
         }
@@ -136,17 +161,18 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                     </div>
                 ))}
 
-                {/* Availability Row */}
-                {(user?.role === 'EMPLOYEE' || (user?.role === 'ADMIN' && selectedUserId)) && (
+                {/* Availability and Shift Row */}
+                {user && (
                     weekDays.map((day, idx) => {
                         const dateStr = format(day, 'yyyy-MM-dd');
                         const status = availability[dateStr] || 'Available';
                         const dayOfWeek = day.getDay(); // 0-6
                         
                         // Check if it's a designated off-day for this user
-                        const profileOffDays = selectedUserProfile?.off_days || [0, 6];
+                        const profileOffDays = selectedUserProfile?.off_days;
+                        const isSchedulePending = !profileOffDays || profileOffDays.length === 0;
                         
-                        const isOffDay = profileOffDays.includes(dayOfWeek);
+                        const isOffDay = profileOffDays?.includes(dayOfWeek);
                         const isEditable = (!selectedUserId || selectedUserId === user?.id) && isOffDay;
 
                         let bgColor = 'var(--bg-secondary)';
@@ -165,41 +191,88 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                             borderColor = 'rgba(239, 68, 68, 0.3)';
                         }
 
+                        const dayShifts = bookedShifts.filter(s => s.date === dateStr);
+                        const hasShifts = dayShifts.length > 0;
+
                         return (
                             <div
                                 key={idx}
                                 className={`calendar-cell ${isEditable ? 'availability-toggle' : ''}`}
                                 style={{ 
-                                    background: bgColor, 
-                                    border: `1px solid ${borderColor}`, 
+                                    background: isSchedulePending && !hasShifts ? 'rgba(255, 255, 255, 0.02)' : bgColor, 
+                                    border: isSchedulePending && !hasShifts ? '1px solid var(--border-color)' : `1px solid ${borderColor}`, 
                                     borderRight: idx === 6 ? 'none' : '1px solid var(--border-color)',
                                     cursor: isEditable ? 'pointer' : 'default', 
                                     transition: 'all 0.2s', 
                                     position: 'relative',
-                                    opacity: isEditable || isOffDay ? 1 : 0.6,
+                                    opacity: hasShifts ? 1 : (isSchedulePending ? 0.5 : (isEditable || isOffDay ? 1 : 0.6)),
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    minHeight: '120px'
+                                    minHeight: '140px',
+                                    padding: hasShifts ? '8px' : '12px',
+                                    gap: '6px'
                                 }}
                                 onClick={() => isEditable && toggleAvailability(dateStr)}
-                                title={!isOffDay ? "Standard Work Day (Locked)" : isEditable ? `Click to signal availability for this off-day` : `Status: ${status}`}
+                                title={isSchedulePending ? "No routine assigned yet" : (!isOffDay ? "Standard Work Day (Locked)" : isEditable ? `Click to signal availability for this off-day` : `Status: ${status}`)}
                             >
-                                {!isOffDay ? (
-                                    <>
-                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase', marginBottom: '0.5rem', opacity: 0.8 }}>Work</div>
-                                        <div style={{ padding: '0.5rem', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.1)' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-primary)' }}></div>
-                                        </div>
-                                    </>
+                                {hasShifts ? (
+                                    /* Shift View: Only show shifts, no background text/indicators */
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', height: '100%', justifyContent: 'center' }}>
+                                        {dayShifts.map((shift, sidx) => (
+                                            <div key={sidx} style={{ 
+                                                background: shift.user_id ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'linear-gradient(135deg, #f59e0b, #fbbf24)', 
+                                                color: '#FFFFFF',
+                                                padding: '10px 12px', borderRadius: '12px', fontSize: '0.8rem',
+                                                fontWeight: 800, boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
+                                                display: 'flex', flexDirection: 'column', gap: '3px',
+                                                border: '1px solid rgba(255,255,255,0.25)',
+                                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                                width: '100%'
+                                            }}>
+                                                {(!selectedUserId || selectedUserId !== shift.user_id) && (
+                                                    <div style={{ marginBottom: '2px' }}>
+                                                        <span style={{ fontSize: '0.6rem', fontWeight: 900, color: '#FFFFFF', background: 'rgba(255,255,255,0.25)', padding: '2px 6px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                            {shift.profiles?.name || 'TBD'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ letterSpacing: '0.5px', color: '#FFFFFF', fontWeight: 800 }}>{shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}</span>
+                                                </div>
+                                                {shift.location && <div style={{ color: '#FFFFFF', opacity: 0.9, fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>{shift.location}</div>}
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
-                                    <>
-                                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.4rem', opacity: 0.6 }}>Day Off</div>
-                                        {status === 'Available' && <Check size={28} color="var(--status-success)" strokeWidth={3} />}
-                                        {status === 'Partial' && <Minus size={28} color="var(--status-warning)" strokeWidth={3} />}
-                                        {status === 'Unavailable' && <X size={28} color="var(--status-danger)" strokeWidth={3} />}
-                                    </>
+                                    /* Status View: Show Dash or Work/Off indicators */
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', flex: 1 }}>
+                                        {isSchedulePending ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', textAlign: 'center', fontSize: '0.75rem', opacity: 0.5 }}>
+                                                <Minus size={16} />
+                                                <span>Schedule<br/>Pending</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {!isOffDay ? (
+                                                    <>
+                                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase', marginBottom: '0.5rem', opacity: 0.8 }}>Work</div>
+                                                        <div style={{ padding: '0.5rem', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.1)' }}>
+                                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-primary)' }}></div>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.4rem', opacity: 0.6 }}>Day Off</div>
+                                                        {status === 'Available' && <Check size={28} color="var(--status-success)" strokeWidth={3} />}
+                                                        {status === 'Partial' && <Minus size={28} color="var(--status-warning)" strokeWidth={3} />}
+                                                        {status === 'Unavailable' && <X size={28} color="var(--status-danger)" strokeWidth={3} />}
+                                                    </>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         );
