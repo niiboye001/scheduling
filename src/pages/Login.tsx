@@ -76,7 +76,7 @@ const Login: React.FC = () => {
                 </div>
 
                 {error && (
-                    <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--status-danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--status-danger)', fontSize: '0.85rem' }}>
+                    <div style={{ background: 'var(--bg-status-danger-subtle)', border: '1px solid var(--status-danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--status-danger)', fontSize: '0.85rem' }}>
                         <AlertCircle size={16} />
                         {error}
                     </div>

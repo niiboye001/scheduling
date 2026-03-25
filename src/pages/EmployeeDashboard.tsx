@@ -16,7 +16,7 @@ const EmployeeDashboard: React.FC = () => {
                     <div style={{ flex: '1 1 100%', minWidth: '700px', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                             <div>
-                                <h1 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(to right, #fff, var(--text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>My Schedule</h1>
+                                <h1 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(to right, var(--text-primary), var(--text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>My Schedule</h1>
                                 <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', fontSize: '1rem' }}>
                                     View your upcoming shifts and update your personal availability by clicking the calendar grid.
                                 </p>

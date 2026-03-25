@@ -1,6 +1,7 @@
 import React from 'react';
-import { Search, Bell, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
+import { Search, Bell, ChevronLeft, ChevronRight, FileDown, Sun, Moon } from 'lucide-react';
 import { format, addMonths, subMonths } from 'date-fns';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface HeaderProps {
     currentDate: Date;
@@ -8,6 +9,8 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ currentDate, setCurrentDate }) => {
+    const { theme, toggleTheme } = useTheme();
+
     return (
         <header className="header animate-fade-in" style={{
             height: '80px',
@@ -16,8 +19,9 @@ const Header: React.FC<HeaderProps> = ({ currentDate, setCurrentDate }) => {
             justifyContent: 'space-between',
             padding: '0 2rem',
             borderBottom: '1px solid var(--border-color)',
-            background: 'rgba(15, 17, 26, 0.8)',
+            background: 'var(--glass-bg)',
             backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             position: 'sticky',
             top: 0,
             zIndex: 10
@@ -48,6 +52,14 @@ const Header: React.FC<HeaderProps> = ({ currentDate, setCurrentDate }) => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem' }}>
+                    <button 
+                        className="icon-btn" 
+                        onClick={toggleTheme}
+                        aria-label="Toggle theme"
+                        title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                    >
+                        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+                    </button>
                     <button className="icon-btn relative" aria-label="Notifications">
                         <Bell size={20} />
                         <span className="badge"></span>

@@ -21,7 +21,7 @@ const AdminDashboard: React.FC = () => {
                         <div style={{ flex: '1 1 75%', minWidth: '0', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                                 <div>
-                                    <h1 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(to right, #fff, var(--text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Admin Console</h1>
+                                    <h1 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(to right, var(--text-primary), var(--text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Admin Console</h1>
                                     <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', fontSize: '1rem' }}>
                                         Manage staff shifts, resolve conflicts, and oversee availability.
                                     </p>

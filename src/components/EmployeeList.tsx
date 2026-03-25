@@ -14,9 +14,6 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
     const [employees, setEmployees] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [updatingId, setUpdatingId] = useState<string | null>(null);
-    const [editingOffDays, setEditingOffDays] = useState<string | null>(null);
-    const [tempOffDays, setTempOffDays] = useState<number[]>([]);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -46,7 +43,6 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
         if (currentUser?.role !== 'ADMIN' || targetUser.id === currentUser.id) return;
 
         const newRole = targetUser.role === 'ADMIN' ? 'EMPLOYEE' : 'ADMIN';
-        setUpdatingId(targetUser.id);
 
         const { error } = await supabase
             .from('profiles')
@@ -58,26 +54,8 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                 emp.id === targetUser.id ? { ...emp, role: newRole as 'ADMIN' | 'EMPLOYEE' } : emp
             ));
         }
-        setUpdatingId(null);
     };
 
-    const saveOffDays = async (userId: string) => {
-        if (tempOffDays.length !== 2) return;
-        setUpdatingId(userId);
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ off_days: tempOffDays })
-            .eq('id', userId);
-
-        if (!error) {
-            setEmployees(prev => prev.map(emp =>
-                emp.id === userId ? { ...emp, off_days: tempOffDays } : emp
-            ));
-            setEditingOffDays(null);
-        }
-        setUpdatingId(null);
-    };
 
     const filteredEmployees = employees.filter(emp =>
         emp.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -89,7 +67,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            background: 'rgba(22, 25, 37, 0.4)',
+            background: 'var(--bg-secondary)',
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-lg)'
         }}>
@@ -129,7 +107,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                                 onClick={() => onUserClick?.(emp.id)}
                                 style={{
                                     display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem',
-                                    background: selectedUserId === emp.id ? 'rgba(79, 70, 229, 0.15)' : 'var(--bg-primary)',
+                                    background: selectedUserId === emp.id ? 'var(--bg-status-info-subtle)' : 'var(--bg-primary)',
                                     borderRadius: 'var(--radius-md)',
                                     border: selectedUserId === emp.id ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
                                     transition: 'all 0.2s',
@@ -175,7 +153,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                                                 style={{ 
                                                     position: 'absolute', top: '100%', right: 0, zIndex: 100,
                                                     width: '160px', marginTop: '0.5rem', overflow: 'hidden',
-                                                    background: 'rgba(30, 34, 51, 0.95)', boxShadow: 'var(--shadow-lg)',
+                                                    background: 'var(--bg-dropdown)', boxShadow: 'var(--shadow-lg)',
                                                     border: '1px solid var(--border-color)'
                                                 }}
                                             >
@@ -187,7 +165,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                                                             background: 'transparent', border: 'none', color: 'var(--text-primary)', textAlign: 'left',
                                                             cursor: 'pointer', fontSize: '0.85rem', transition: 'all 0.2s'
                                                         }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover-subtle)'}
                                                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                                         onClick={(e) => { e.stopPropagation(); toggleRole(emp); setOpenMenuId(null); }}
                                                     >
@@ -195,91 +173,11 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                                                         {emp.role === 'ADMIN' ? 'Demote to Staff' : 'Make Admin'}
                                                     </button>
                                                 )}
-                                                <button
-                                                    className="dropdown-item"
-                                                    style={{ 
-                                                        width: '100%', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                                                        background: 'transparent', border: 'none', color: 'var(--text-primary)', textAlign: 'left',
-                                                        cursor: 'pointer', fontSize: '0.85rem', transition: 'all 0.2s'
-                                                    }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingOffDays(editingOffDays === emp.id ? null : emp.id);
-                                                        setTempOffDays(emp.off_days || []);
-                                                        setOpenMenuId(null);
-                                                    }}
-                                                >
-                                                    <Search size={14} color="var(--text-muted)" />
-                                                    Routine Off-Days
-                                                </button>
                                             </div>
                                         )}
                                     </div>
                                 )}
                             </div>
-                            
-                            {editingOffDays === emp.id && (
-                                <div onClick={(e) => e.stopPropagation()} className="animate-fade-in" style={{ 
-                                    padding: '0.75rem', background: 'var(--bg-tertiary)', 
-                                    borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)',
-                                    boxShadow: 'var(--shadow-lg)'
-                                }}>
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Set 2 Non-Consecutive Days Off</span>
-                                        <span style={{ color: tempOffDays.length === 2 ? 'var(--status-success)' : 'var(--status-danger)' }}>{tempOffDays.length}/2 Selected</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.25rem' }}>
-                                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => {
-                                            const isSelected = tempOffDays.includes(idx);
-                                            // Non-consecutive rule: can't select adjacent days
-                                            const isConsecutive = tempOffDays.some(d => Math.abs(d - idx) === 1 || Math.abs(d - idx) === 6);
-                                            const isDisabled = (!isSelected && tempOffDays.length >= 2) || (!isSelected && isConsecutive);
-                                            
-                                            return (
-                                                <button
-                                                    key={idx}
-                                                    disabled={isDisabled}
-                                                    onClick={() => {
-                                                        if (isSelected) {
-                                                            setTempOffDays(prev => prev.filter(d => d !== idx));
-                                                        } else {
-                                                            setTempOffDays(prev => [...prev, idx]);
-                                                        }
-                                                    }}
-                                                    style={{
-                                                        width: '100%', aspectRatio: '1/1', borderRadius: '8px', border: '1px solid var(--border-color)',
-                                                        background: isSelected ? 'var(--accent-primary)' : 'var(--bg-primary)',
-                                                        color: isSelected ? 'white' : 'var(--text-muted)',
-                                                        fontSize: '0.75rem', fontWeight: 600, cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                        opacity: isDisabled ? 0.3 : 1, transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    {day}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                    <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
-                                        <button 
-                                            className="btn btn-sm btn-primary" 
-                                            style={{ flex: 1, fontSize: '0.7rem' }}
-                                            disabled={tempOffDays.length !== 2 || updatingId === emp.id}
-                                            onClick={() => saveOffDays(emp.id)}
-                                        >
-                                            {updatingId === emp.id && editingOffDays === emp.id ? <Loader2 size={12} className="animate-spin" /> : 'Save Routine'}
-                                        </button>
-                                        <button 
-                                            className="btn btn-sm btn-secondary" 
-                                            style={{ fontSize: '0.7rem' }}
-                                            onClick={() => setEditingOffDays(null)}
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     ))
                 )}

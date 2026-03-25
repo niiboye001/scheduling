@@ -152,7 +152,7 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                 <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', flex: 1 }}>
 
                     {(error || (selectedUserProfile && availabilityMap[selectedDate] === 'Unavailable')) && (
-                        <div className="animate-fade-in" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--status-danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', color: 'var(--status-danger)', fontSize: '0.85rem' }}>
+                        <div className="animate-fade-in" style={{ background: 'var(--bg-status-danger-subtle)', border: '1px solid var(--status-danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', color: 'var(--status-danger)', fontSize: '0.85rem' }}>
                             <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
                             <div>
                                 <strong>{error ? 'Missing Information' : 'Conflict Detected'}</strong>
@@ -238,7 +238,7 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                                     return (
                                         <div key={i} style={{ 
                                             textAlign: 'center', padding: '0.4rem 0.2rem', borderRadius: '8px',
-                                            background: isTargetDate ? 'rgba(79, 70, 229, 0.2)' : 'var(--bg-primary)',
+                                            background: isTargetDate ? 'var(--bg-accent-subtle)' : 'var(--bg-primary)',
                                             border: isTargetDate ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
                                             position: 'relative', minWidth: 0
                                         }}>
@@ -256,13 +256,13 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                             </div>
 
                             {selectedUserProfile && availabilityMap[selectedDate] === 'Unavailable' && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--status-danger)', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.05)', padding: '0.4rem', borderRadius: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--status-danger)', fontSize: '0.75rem', background: 'var(--bg-status-danger-subtle)', padding: '0.4rem', borderRadius: '4px' }}>
                                     <AlertTriangle size={12} />
                                     <span>Staff member marked as Unavailable on this day</span>
                                 </div>
                             )}
                             {Array.isArray(selectedUserProfile?.off_days) && selectedUserProfile.off_days.includes(parseISO(selectedDate).getDay()) && !availabilityMap[selectedDate] && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-primary)', fontSize: '0.75rem', background: 'rgba(79, 70, 229, 0.05)', padding: '0.4rem', borderRadius: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-primary)', fontSize: '0.75rem', background: 'var(--bg-status-info-subtle)', padding: '0.4rem', borderRadius: '4px' }}>
                                     <Clock size={12} />
                                     <span>Designated Routine Off-Day</span>
                                 </div>
