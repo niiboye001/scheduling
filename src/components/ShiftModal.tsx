@@ -35,32 +35,37 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
 
         const fetchUserContext = async () => {
             setLoadingContext(true);
-            // 1. Fetch Profile for Off-Days
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', selectedAssignee)
-                .single();
-            
-            if (profile) setSelectedUserProfile(profile as UserProfile);
+            try {
+                // 1. Fetch Profile for Off-Days
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', selectedAssignee)
+                    .single();
+                
+                if (profile) setSelectedUserProfile(profile as UserProfile);
 
-            // 2. Fetch Availabilities for the week of the selected date
-            const weekStart = startOfWeek(parseISO(selectedDate), { weekStartsOn: 1 });
-            const weekEnd = addDays(weekStart, 6);
+                // 2. Fetch Availabilities for the week of the selected date
+                const weekStart = startOfWeek(parseISO(selectedDate), { weekStartsOn: 1 });
+                const weekEnd = addDays(weekStart, 6);
 
-            const { data: avail } = await supabase
-                .from('availabilities')
-                .select('date, status')
-                .eq('user_id', selectedAssignee)
-                .gte('date', format(weekStart, 'yyyy-MM-dd'))
-                .lte('date', format(weekEnd, 'yyyy-MM-dd'));
+                const { data: avail } = await supabase
+                    .from('availabilities')
+                    .select('date, status')
+                    .eq('user_id', selectedAssignee)
+                    .gte('date', format(weekStart, 'yyyy-MM-dd'))
+                    .lte('date', format(weekEnd, 'yyyy-MM-dd'));
 
-            if (avail) {
-                const map: Record<string, string> = {};
-                avail.forEach(row => map[row.date] = row.status);
-                setAvailabilityMap(map);
+                if (avail) {
+                    const map: Record<string, string> = {};
+                    avail.forEach(row => map[row.date] = row.status);
+                    setAvailabilityMap(map);
+                }
+            } catch (err) {
+                // Silently handle context fetch errors to prevent modal stuck
+            } finally {
+                setLoadingContext(false);
             }
-            setLoadingContext(false);
         };
 
         fetchUserContext();
@@ -98,23 +103,27 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
         setIsSaving(true);
         setError('');
 
-        const { error: saveError } = await supabase
-            .from('shifts')
-            .insert([{
-                user_id: selectedAssignee === 'unassigned' || !selectedAssignee ? null : selectedAssignee,
-                date: selectedDate,
-                start_time: startTime,
-                end_time: endTime,
-                location: location,
-                notes: notes
-            }]);
+        try {
+            const { error: saveError } = await supabase
+                .from('shifts')
+                .insert([{
+                    user_id: selectedAssignee === 'unassigned' || !selectedAssignee ? null : selectedAssignee,
+                    date: selectedDate,
+                    start_time: startTime,
+                    end_time: endTime,
+                    location: location,
+                    notes: notes
+                }]);
 
-        if (saveError) {
-            setError(`Save failed: ${saveError.message}`);
+            if (saveError) {
+                setError(`Save failed: ${saveError.message}`);
+            } else {
+                onClose();
+            }
+        } catch (err: any) {
+            setError(`Save failed: ${err.message || 'An unexpected error occurred'}`);
+        } finally {
             setIsSaving(false);
-        } else {
-            setIsSaving(false);
-            onClose();
         }
     };
 

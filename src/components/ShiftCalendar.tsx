@@ -231,7 +231,7 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                                                 textShadow: '0 1px 2px rgba(0,0,0,0.3)',
                                                 width: '100%'
                                             }}>
-                                                {(!selectedUserId || selectedUserId !== shift.user_id) && (
+                                                {shift.user_id !== user?.id && (
                                                     <div style={{ marginBottom: '2px' }}>
                                                         <span style={{ fontSize: '0.6rem', fontWeight: 900, color: '#FFFFFF', background: 'rgba(255,255,255,0.25)', padding: '2px 6px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                                             {shift.profiles?.name || 'TBD'}
