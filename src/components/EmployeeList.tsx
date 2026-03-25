@@ -94,7 +94,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
             borderRadius: 'var(--radius-lg)'
         }}>
             <div style={{ padding: '1.25rem 1.25rem 1rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Team Directory</h3>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>Team Directory</h3>
                 <div style={{ fontSize: '0.75rem', background: 'var(--bg-tertiary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--text-muted)' }}>
                     {employees.length} Members
                 </div>
@@ -128,7 +128,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                                 className={`employee-card ${selectedUserId === emp.id ? 'selected' : ''}`}
                                 onClick={() => onUserClick?.(emp.id)}
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem',
+                                    display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem',
                                     background: selectedUserId === emp.id ? 'rgba(79, 70, 229, 0.15)' : 'var(--bg-primary)',
                                     borderRadius: 'var(--radius-md)',
                                     border: selectedUserId === emp.id ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
@@ -141,12 +141,12 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
                                     background: emp.role === 'ADMIN' ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'var(--bg-tertiary)',
                                     color: emp.role === 'ADMIN' ? 'white' : 'var(--text-muted)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontWeight: 'bold', fontSize: '0.9rem'
+                                    fontWeight: 'bold', fontSize: '0.75rem'
                                 }}>
                                     {emp.name.charAt(0)}
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp.name}</div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp.name}</div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.1rem' }}>
                                         {emp.role === 'ADMIN' ? (
                                             <Shield size={12} color="var(--accent-primary)" />
