@@ -8,9 +8,10 @@ import { supabase } from '../lib/supabase';
 interface ShiftCalendarProps {
     currentDate: Date;
     selectedUserId?: string | null;
+    onDayClick?: (dateStr: string, userId?: string, mode?: 'shift' | 'off_day', shift?: any) => void;
 }
 
-const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUserId }) => {
+const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUserId, onDayClick }) => {
     const { user } = useAuth();
     const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null);
     const startDate = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -20,42 +21,40 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
     const [bookedShifts, setBookedShifts] = useState<any[]>([]);
 
     useEffect(() => {
+        const isViewAllAdmin = user?.role === 'ADMIN' && !selectedUserId;
         const targetId = selectedUserId || user?.id;
+        
         if (!targetId) return;
 
         // 1. Initial Data Fetch
         const fetchData = async () => {
-            const targetId = selectedUserId || user?.id;
-            if (!targetId) return;
-
-            // Optional: reset current view for smooth transition
-            if (selectedUserId) {
-                // Only reset if we are switching to a specific user
-                // setBookedShifts([]); 
-            }
-
             try {
-                // 1. Fetch profile for routine and naming
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', targetId)
-                    .single();
-                
-                if (profile) setSelectedUserProfile(profile as UserProfile);
-
-                // 2. Fetch availabilities
-                const { data: availData } = await supabase
-                    .from('availabilities')
-                    .select('date, status')
-                    .eq('user_id', targetId);
-
-                if (availData) {
-                    const payload: Record<string, 'Available' | 'Unavailable' | 'Partial'> = {};
-                    availData.forEach((row: any) => payload[row.date] = row.status);
-                    setAvailability(payload);
-                } else {
+                if (isViewAllAdmin) {
                     setAvailability({});
+                    setSelectedUserProfile(null);
+                } else {
+                    // 1. Fetch profile for routine and naming
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', targetId)
+                        .single();
+                    
+                    if (profile) setSelectedUserProfile(profile as UserProfile);
+
+                    // 2. Fetch availabilities
+                    const { data: availData } = await supabase
+                        .from('availabilities')
+                        .select('date, status')
+                        .eq('user_id', targetId);
+
+                    if (availData) {
+                        const payload: Record<string, 'Available' | 'Unavailable' | 'Partial'> = {};
+                        availData.forEach((row: any) => payload[row.date] = row.status);
+                        setAvailability(payload);
+                    } else {
+                        setAvailability({});
+                    }
                 }
 
                 // 3. Fetch shifts with user filtering
@@ -66,9 +65,7 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                     .lte('date', format(addDays(startDate, 6), 'yyyy-MM-dd'));
                 
                 // Admin logic: if no user selected, show everything. If user selected, filter by them.
-                // Non-admins always filter by themselves (handled by targetId defaulting to user.id).
-                const isViewAllAdmin = user?.role === 'ADMIN' && !selectedUserId;
-                
+                // Non-admins always filter by themselves.
                 if (!isViewAllAdmin) {
                     shiftsQuery = shiftsQuery.eq('user_id', targetId);
                 }
@@ -91,6 +88,7 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'availabilities' },
                 (payload) => {
+                    if (isViewAllAdmin) return;
                     const newData = payload.new as any;
                     if (newData && newData.user_id === targetId) {
                         setAvailability((prev: Record<string, 'Available' | 'Unavailable' | 'Partial'>) => ({
@@ -123,14 +121,16 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
         const targetId = selectedUserId || user.id;
         const currentStatus = availability[dateStr];
         
-        // ADMIN Cycle: Neutral -> Unavailable (Day Off) -> Available -> Neutral (Clear Record)
+        // ADMIN Cycle: Modal Trigger 
         // STAFF Cycle: Unavailable <-> Available (Only on assigned days)
         let nextStatus: 'Available' | 'Unavailable' | undefined;
         
         if (user.role === 'ADMIN') {
-            if (!currentStatus) nextStatus = 'Unavailable';
-            else if (currentStatus === 'Unavailable') nextStatus = 'Available';
-            else nextStatus = undefined;
+            if (onDayClick) {
+                const mode = currentStatus ? 'off_day' : 'shift';
+                onDayClick(dateStr, selectedUserId || undefined, mode);
+            }
+            return;
         } else {
             if (!currentStatus) return; // Locked for staff if not initiated by Admin
             nextStatus = currentStatus === 'Available' ? 'Unavailable' : 'Available';
@@ -172,10 +172,10 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                 </div>
                 <div>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>
-                        {selectedUserId && selectedUserId !== user?.id ? selectedUserProfile?.name : "My Schedule"}
+                        {user?.role === 'ADMIN' && !selectedUserId ? "Team Schedule" : (selectedUserId && selectedUserId !== user?.id ? selectedUserProfile?.name : "My Schedule")}
                     </h2>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-                        {selectedUserId && selectedUserId !== user?.id ? `Viewing availability for ${selectedUserProfile?.name}` : "Manage your weekly availability and overtime requests"}
+                        {user?.role === 'ADMIN' && !selectedUserId ? "Showing all shifts across the organization." : (selectedUserId && selectedUserId !== user?.id ? `Viewing availability for ${selectedUserProfile?.name}` : "Manage your weekly availability and overtime requests")}
                     </p>
                 </div>
             </div>
@@ -202,8 +202,9 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                         // Admins can toggle anyone's specific off-days. 
                         // Staff can ONLY toggle availability on days indicated as 'Off' by an Admin.
                         const isAdmin = user?.role === 'ADMIN';
+                        const isViewAllAdmin = isAdmin && !selectedUserId;
                         const isOwnCalendar = !selectedUserId || selectedUserId === user?.id;
-                        const isEditable = isAdmin || (isOwnCalendar && status !== undefined);
+                        const isEditable = isAdmin || (!isViewAllAdmin && isOwnCalendar && status !== undefined);
 
                         let bgColor = 'var(--bg-secondary)';
                         let borderColor = 'transparent';
@@ -241,7 +242,7 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                                 }}
                                 onClick={() => isEditable && toggleAvailability(dateStr)}
                                 title={isAdmin ? 
-                                    (status ? `Status: ${status} (Cycle: Off -> Available -> Clear)` : "Work Day (Click to assign Day Off)") : 
+                                    ("Click to open Modal for " + (status ? `Status: ${status}` : "Work Day")) : 
                                     (status ? `Click to signal your availability` : "Standard Work Day (Locked)")
                                 }
                             >
@@ -257,7 +258,14 @@ const ShiftCalendar: React.FC<ShiftCalendarProps> = ({ currentDate, selectedUser
                                                 display: 'flex', flexDirection: 'column', gap: '3px',
                                                 border: '1px solid rgba(255,255,255,0.25)',
                                                 textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                                                width: '100%'
+                                                width: '100%',
+                                                cursor: isAdmin ? 'pointer' : 'default'
+                                            }}
+                                            onClick={(e) => {
+                                                if (isAdmin) {
+                                                    e.stopPropagation();
+                                                    if (onDayClick) onDayClick(dateStr, shift.user_id, 'shift', shift);
+                                                }
                                             }}>
                                                 {shift.user_id !== user?.id && (
                                                     <div style={{ marginBottom: '2px' }}>

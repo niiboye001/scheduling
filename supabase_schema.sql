@@ -50,5 +50,14 @@ CREATE POLICY "Users can insert their own availability" ON public.availabilities
 CREATE POLICY "Users can update their own availability" ON public.availabilities
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can delete their own availability" ON public.availabilities
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Admins can manage ALL availabilities (Insert, Update, Delete)
+CREATE POLICY "Admins can manage all availabilities" ON public.availabilities
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'ADMIN')
+  );
+
 -- 4. Enable Realtime on the availabilities table
 ALTER PUBLICATION supabase_realtime ADD TABLE public.availabilities;

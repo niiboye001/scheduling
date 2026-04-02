@@ -9,6 +9,18 @@ const AdminDashboard: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [modalInitialDate, setModalInitialDate] = useState<string | null>(null);
+    const [modalInitialAssignee, setModalInitialAssignee] = useState<string | null>(null);
+    const [modalInitialMode, setModalInitialMode] = useState<'shift' | 'off_day'>('shift');
+    const [modalInitialShift, setModalInitialShift] = useState<any | null>(null);
+
+    const openModalWithContext = (dateStr?: string, assignee?: string, mode?: 'shift' | 'off_day', shift?: any) => {
+        setModalInitialDate(dateStr || null);
+        setModalInitialAssignee(assignee || null);
+        setModalInitialMode(mode || 'shift');
+        setModalInitialShift(shift || null);
+        setIsModalOpen(true);
+    };
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -26,11 +38,15 @@ const AdminDashboard: React.FC = () => {
                                         Manage staff shifts, resolve conflicts, and oversee availability.
                                     </p>
                                 </div>
-                                <button className="btn btn-primary" style={{ height: 'fit-content', padding: '0.75rem 1.5rem', position: 'relative', zIndex: 10 }} onClick={() => setIsModalOpen(true)}>
+                                <button className="btn btn-primary" style={{ height: 'fit-content', padding: '0.75rem 1.5rem', position: 'relative', zIndex: 10 }} onClick={() => openModalWithContext()}>
                                     + New Shift
                                 </button>
                             </div>
-                            <ShiftCalendar currentDate={currentDate} selectedUserId={selectedUserId} />
+                            <ShiftCalendar 
+                                currentDate={currentDate} 
+                                selectedUserId={selectedUserId} 
+                                onDayClick={(dateStr, userId, mode, shift) => openModalWithContext(dateStr, userId, mode, shift)}
+                            />
                         </div>
 
                         <div style={{ flex: '1 1 22%', minWidth: '0', maxWidth: '280px' }}>
@@ -41,7 +57,14 @@ const AdminDashboard: React.FC = () => {
                 </div>
             </div>
 
-            <ShiftModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+            <ShiftModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                initialDate={modalInitialDate}
+                initialAssignee={modalInitialAssignee}
+                initialMode={modalInitialMode}
+                initialShift={modalInitialShift}
+            />
         </div>
     );
 };

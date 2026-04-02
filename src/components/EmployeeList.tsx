@@ -73,9 +73,15 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ selectedUserId, onUserClick
         }}>
             <div style={{ padding: '1.25rem 1.25rem 1rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>Team Directory</h3>
-                <div style={{ fontSize: '0.75rem', background: 'var(--bg-tertiary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--text-muted)' }}>
-                    {employees.length} Members
-                </div>
+                {selectedUserId ? (
+                    <button onClick={() => onUserClick?.('')} className="btn-secondary" style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '4px' }}>
+                        View All
+                    </button>
+                ) : (
+                    <div style={{ fontSize: '0.75rem', background: 'var(--bg-tertiary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                        {employees.length} Members
+                    </div>
+                )}
             </div>
 
             <div style={{ padding: '1rem 1.25rem' }}>

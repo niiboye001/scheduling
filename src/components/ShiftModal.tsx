@@ -8,10 +8,15 @@ import { supabase } from '../lib/supabase';
 interface ShiftModalProps {
     isOpen: boolean;
     onClose: () => void;
+    initialDate?: string | null;
+    initialAssignee?: string | null;
+    initialMode?: 'shift' | 'off_day';
+    initialShift?: any | null;
 }
 
-const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
+const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose, initialDate, initialAssignee, initialMode, initialShift }) => {
     const { user } = useAuth();
+    const [entryMode, setEntryMode] = useState<'shift' | 'off_day'>('shift');
     const [assignees, setAssignees] = useState<UserProfile[]>([]);
     const [selectedAssignee, setSelectedAssignee] = useState('');
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -25,6 +30,7 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
     const [loadingContext, setLoadingContext] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
+    const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!selectedAssignee || selectedAssignee === 'unassigned') {
@@ -85,17 +91,34 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                 setLoading(false);
             };
             fetchAssignees();
-            setSelectedAssignee('');
+            setSelectedAssignee(initialAssignee || '');
+            setSelectedDate(initialDate || format(new Date(), 'yyyy-MM-dd'));
+            setEntryMode(initialMode || 'shift');
             setError('');
-            setLocation('');
-            setNotes('');
+            if (initialShift && initialMode !== 'off_day') {
+                setStartTime(initialShift.start_time);
+                setEndTime(initialShift.end_time);
+                setLocation(initialShift.location || '');
+                setNotes(initialShift.notes || '');
+                setEditingShiftId(initialShift.id);
+            } else {
+                setLocation('');
+                setNotes('');
+                setStartTime('08:00');
+                setEndTime('16:00');
+                setEditingShiftId(null);
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, initialDate, initialAssignee, initialMode, initialShift]);
 
     if (!isOpen) return null;
 
     const handleSave = async () => {
-        if (!selectedDate || !startTime || !endTime) {
+        if (!selectedDate) {
+            setError('Please select a Date.');
+            return;
+        }
+        if (entryMode === 'shift' && (!startTime || !endTime)) {
             setError('Please fill in all required fields (Date, Start Time, End Time).');
             return;
         }
@@ -104,24 +127,99 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
         setError('');
 
         try {
-            const { error: saveError } = await supabase
-                .from('shifts')
-                .insert([{
-                    user_id: selectedAssignee === 'unassigned' || !selectedAssignee ? null : selectedAssignee,
-                    date: selectedDate,
-                    start_time: startTime,
-                    end_time: endTime,
-                    location: location,
-                    notes: notes
-                }]);
+            if (entryMode === 'shift') {
+                if (editingShiftId) {
+                    const { error: saveError } = await supabase
+                        .from('shifts')
+                        .update({
+                            user_id: selectedAssignee === 'unassigned' || !selectedAssignee ? null : selectedAssignee,
+                            date: selectedDate,
+                            start_time: startTime,
+                            end_time: endTime,
+                            location: location,
+                            notes: notes
+                        })
+                        .eq('id', editingShiftId);
+                    if (saveError) throw new Error(saveError.message);
+                } else {
+                    const { error: saveError } = await supabase
+                        .from('shifts')
+                        .insert([{
+                            user_id: selectedAssignee === 'unassigned' || !selectedAssignee ? null : selectedAssignee,
+                            date: selectedDate,
+                            start_time: startTime,
+                            end_time: endTime,
+                            location: location,
+                            notes: notes
+                        }]);
+                    if (saveError) throw new Error(saveError.message);
+                }
+                
+                // Clear any conflicting 'Day Off' (Availability) record for this assignee on this date
+                if (selectedAssignee && selectedAssignee !== 'unassigned') {
+                    await supabase
+                        .from('availabilities')
+                        .delete()
+                        .eq('user_id', selectedAssignee)
+                        .eq('date', selectedDate);
+                }
 
-            if (saveError) {
-                setError(`Save failed: ${saveError.message}`);
             } else {
-                onClose();
+                if (!selectedAssignee || selectedAssignee === 'unassigned') throw new Error('Please select an assignee.');
+                
+                // Clear any conflicting shifts for this assignee on this date before setting the day off
+                await supabase
+                    .from('shifts')
+                    .delete()
+                    .eq('user_id', selectedAssignee)
+                    .eq('date', selectedDate);
+
+                const { error: saveError } = await supabase
+                    .from('availabilities')
+                    .upsert({ user_id: selectedAssignee, date: selectedDate, status: 'Unavailable' }, { onConflict: 'user_id, date' });
+
+                if (saveError) throw new Error(saveError.message);
             }
+            onClose();
         } catch (err: any) {
             setError(`Save failed: ${err.message || 'An unexpected error occurred'}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteShift = async () => {
+        if (!editingShiftId) return;
+        setIsSaving(true);
+        setError('');
+        try {
+            const { error: deleteError } = await supabase
+                .from('shifts')
+                .delete()
+                .eq('id', editingShiftId);
+            if (deleteError) throw new Error(deleteError.message);
+            onClose();
+        } catch (err: any) {
+            setError(`Delete failed: ${err.message}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleClearDayOff = async () => {
+        if (!selectedAssignee || selectedAssignee === 'unassigned') return;
+        setIsSaving(true);
+        setError('');
+        try {
+            const { error: deleteError } = await supabase
+                .from('availabilities')
+                .delete()
+                .eq('user_id', selectedAssignee)
+                .eq('date', selectedDate);
+            if (deleteError) throw new Error(deleteError.message);
+            onClose();
+        } catch (err: any) {
+            setError(`Clear failed: ${err.message}`);
         } finally {
             setIsSaving(false);
         }
@@ -142,9 +240,26 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
             }}>
                 {/* Header */}
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Create New Shift</h3>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{editingShiftId && entryMode === 'shift' ? 'Edit Shift' : (entryMode === 'shift' ? 'Create New Shift' : 'Manage Day Off')}</h3>
                     <button onClick={onClose} className="icon-btn" style={{ padding: '0.25rem', width: 'auto', height: 'auto' }}>
                         <X size={20} />
+                    </button>
+                </div>
+
+                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '0.5rem', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+                    <button 
+                         className={`btn ${entryMode === 'shift' ? 'btn-primary' : 'btn-secondary'}`}
+                         style={{ flex: 1, padding: '0.5rem' }}
+                         onClick={() => setEntryMode('shift')}
+                    >
+                         New Shift
+                    </button>
+                    <button 
+                         className={`btn ${entryMode === 'off_day' ? 'btn-primary' : 'btn-secondary'}`}
+                         style={{ flex: 1, padding: '0.5rem' }}
+                         onClick={() => setEntryMode('off_day')}
+                    >
+                         Day Off
                     </button>
                 </div>
 
@@ -175,22 +290,24 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Start Time</label>
-                            <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                                <Clock size={16} color="var(--accent-primary)" />
-                                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
+                    {entryMode === 'shift' && (
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Start Time</label>
+                                <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                    <Clock size={16} color="var(--accent-primary)" />
+                                    <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
+                                </div>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>End Time</label>
+                                <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                    <Clock size={16} color="var(--text-muted)" />
+                                    <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
+                                </div>
                             </div>
                         </div>
-                        <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>End Time</label>
-                            <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                                <Clock size={16} color="var(--text-muted)" />
-                                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
-                            </div>
-                        </div>
-                    </div>
+                    )}
 
                     <div>
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Assignee</label>
@@ -270,31 +387,49 @@ const ShiftModal: React.FC<ShiftModalProps> = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Department / Location</label>
-                        <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                            <MapPin size={16} color="var(--status-warning)" />
-                            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. ICU - Ward B" style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
-                        </div>
-                    </div>
+                    {entryMode === 'shift' && (
+                        <>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Department / Location</label>
+                                <div className="input-field" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                    <MapPin size={16} color="var(--status-warning)" />
+                                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. ICU - Ward B" style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%' }} />
+                                </div>
+                            </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Notes</label>
-                        <div className="input-field" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                            <FileText size={16} color="var(--text-muted)" style={{ marginTop: '0.2rem' }} />
-                            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Add shift notes here..." style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%', resize: 'none', fontFamily: 'inherit' }}></textarea>
-                        </div>
-                    </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Notes</label>
+                                <div className="input-field" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                    <FileText size={16} color="var(--text-muted)" style={{ marginTop: '0.2rem' }} />
+                                    <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Add shift notes here..." style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%', resize: 'none', fontFamily: 'inherit' }}></textarea>
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                 </div>
 
                 {/* Footer */}
-                <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', background: 'var(--bg-tertiary)', flexShrink: 0 }}>
-                    <button className="btn btn-secondary" onClick={onClose} disabled={isSaving}>Cancel</button>
-                    <button className="btn btn-primary" onClick={handleSave} disabled={isSaving} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {isSaving && <Loader2 size={16} className="animate-spin" />}
-                        {isSaving ? 'Creating...' : 'Create Shift'}
-                    </button>
+                <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', gap: '1rem', background: 'var(--bg-tertiary)', flexShrink: 0 }}>
+                    <div>
+                        {entryMode === 'off_day' && selectedUserProfile && availabilityMap[selectedDate] === 'Unavailable' && (
+                            <button className="btn btn-secondary" onClick={handleClearDayOff} disabled={isSaving} style={{ color: 'var(--status-danger)', borderColor: 'var(--status-danger)' }}>
+                                Clear Day Off
+                            </button>
+                        )}
+                        {entryMode === 'shift' && editingShiftId && (
+                            <button className="btn btn-secondary" onClick={handleDeleteShift} disabled={isSaving} style={{ color: 'var(--status-danger)', borderColor: 'var(--status-danger)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <XIcon size={16} /> Delete Shift
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button className="btn btn-secondary" onClick={onClose} disabled={isSaving}>Cancel</button>
+                        <button className="btn btn-primary" onClick={handleSave} disabled={isSaving} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {isSaving && <Loader2 size={16} className="animate-spin" />}
+                            {isSaving ? 'Saving...' : (entryMode === 'shift' ? (editingShiftId ? 'Update Shift' : 'Create Shift') : 'Save Day Off')}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
